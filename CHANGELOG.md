@@ -14,6 +14,8 @@
 - 显示元数据：`locale/zh.json`、`locale/en.json` 的 `meta.title/description`，以及 `./icon` 导出。
 - `schemastery` 成为运行时依赖（schema 与设置页需要）；`Config` 加载失败时插件仍可挂载，只是没有 schema 校验与设置页。
 - 8 个 Config schema 回归用例（默认值、边界拒绝、描述齐全、可序列化、与 `resolveConfig` 一致）。
+- 7 个**浏览器半边**回归用例：用一个最小 React 替身（含 render-phase setState 收敛与 mount effect）跑组件，覆盖
+  「宿主表单 / configForms 服务 / 缺失通道」三条数据源分支、summary 视图、以及 save/重置按钮的启用条件。
 
 ### Changed
 - 所有 `@deepseek-ai/dsh*` peer 标记为 **optional**：npm 默认会自动安装 peer，而 npm 上这些包只有远古版本
@@ -39,7 +41,7 @@
 - 限流：每对「发送方→接收方」默认 12 条/分钟。
 - 审计：NDJSON 一行一决策（delivery / refusal / status），自动轮转；回执由同一份文件重放。
 - 优雅降级：缺 `sessionQuery`/`agents`/`agentPresets`/`workspaceRegistry` 时返回可读说明，不抛裸异常。
-- 120 个离线单测（`node --test`，零运行时依赖）+ 真机端到端脚本 `scripts/e2e-live.mjs`
+- 135 个离线单测（`node --test`）+ 真机端到端脚本 `scripts/e2e-live.mjs`
   + zstd 多帧会话日志读取器 `scripts/session-log.mjs`。
 - 文档：README（中文）/ README_EN / docs/protocol.md / docs/verification.md / docs/troubleshooting.md。
 
