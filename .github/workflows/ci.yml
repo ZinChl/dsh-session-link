@@ -20,7 +20,10 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
 
-      # 插件零运行时依赖：单测只用 node:test + node 内置模块。
+      # 唯一运行时依赖是 schemastery（Config schema / 设置页），所以先装依赖。
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
       - name: Unit tests
         run: npm test
 

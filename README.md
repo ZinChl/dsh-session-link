@@ -161,7 +161,26 @@ check_delivery(requestId="req_…")                    # 回执 / 为什么没�
 
 ---
 
-## 配置
+## 设置（Web UI）
+
+**侧边栏 → Plugins → dsh-session-link → 配置**。这一页由插件自己的浏览器半边注册（槽 `plugins.bundle.config`），
+读写的就是这个条目在宿主 settings 里的 Config，写入**立即生效**（宿主会重新激活该条目，不用重启 dsh）。
+
+页面上可以直接改：
+
+| 字段 | 说明 |
+|---|---|
+| **跳数上限 `maxHops`** | 一条线程 A→B→A→B… 允许的最大跳数，超过就拒绝继续转发（1–64） |
+| 限流 `rateLimitPerMinute` | 每对「发送方→接收方」每分钟最多投递几条，0 = 不限流 |
+| 去重窗口 `dedupeWindowMs` | 相同内容在这个窗口内不会重复投递 |
+| 正文上限 `maxTextChars` | 单条消息字符上限 |
+| 能力守卫 `verifyCapability` | 投递前后校验目标 preset/模型是否漂移 |
+| 审计文件 `auditFile` | 回执与审计的 NDJSON 路径（支持 `~`） |
+
+每个字段旁边显示「默认 N」与「已覆盖」标记，可以逐项**恢复默认**（等价于从用户层删掉该键）。
+同一份配置当然也可以用下面的 patch 方式改 —— 两条路落到同一处。
+
+## 配置（patch / 无人值守）
 
 在 profile 的 `cordis.patch.yml` 里加一行**同 id 顶层覆盖**（`insert` 块里的行不可寻址）：
 
@@ -190,6 +209,9 @@ check_delivery(requestId="req_…")                    # 回执 / 为什么没�
 | `awaitDefaultMs` / `awaitMaxMs` | `20000` / `120000` | `session_ask` 等待窗口 |
 | `resumeIdleEvictMs` | `0` | 0 = 不主动回收本插件恢复的 agent（卸载时统一释放） |
 
+> 字段的取值范围与描述由 `lib/config.js` 的 schemastery schema 定义；写错会被宿主在校验阶段拒掉，
+> 而不是等到运行时才出问题。设置页读到的就是这份 schema。
+
 ---
 
 ## 已知限制
@@ -208,7 +230,8 @@ check_delivery(requestId="req_…")                    # 回执 / 为什么没�
 ## 开发
 
 ```bash
-npm test          # 120 个离线单测（node --test，无任何运行时依赖）
+npm install       # 唯一运行时依赖 schemastery（Config schema / 设置页）
+npm test          # 128 个离线单测（node --test）
 npm run smoke     # 用真实宿主包编译工具定义（需要本机装过 dsh）
 npm run e2e       # 真机端到端：真进程 + 真模型 + 真投递（需要装进 headless profile）
 ```
@@ -221,6 +244,8 @@ lib/
   mount.js      插件装配（可离线单测）
   tools.js      5 个工具的 schema / execute / render
   engine.js     投递引擎：守卫 → 恢复 → 能力守卫 → 投递 → 回执
+  config.js     Config schema（设置页字段、范围与描述）
+  client.js     浏览器半边：侧边栏 Plugins 页里的设置表单
   envelope.js   SLEP v1 信封（注入边界，纯函数）
   sessions.js   列表 / 读取 / 目标解析 / 能力探测
   audit.js      NDJSON 审计（串行追加 + 轮转）

@@ -2,6 +2,26 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 与语义化版本。
 
+## [0.2.0] - 2026-10-12
+
+### Added
+- **Web 设置页（跳数可调）**：侧边栏 → Plugins → dsh-session-link → 配置。
+  宿主侧导出 schemastery `Config`（字段带范围与描述），浏览器半边 `lib/client.js` 注册进
+  `plugins.bundle.config` 槽，通过 `ctx.remote.settings` 读写该条目的 Config；
+  `applies: 'live'`，保存后宿主重新激活条目，**不用重启 dsh** 就能改跳数上限等参数。
+  可改：`maxHops` / `rateLimitPerMinute` / `dedupeWindowMs` / `maxTextChars` / `verifyCapability` / `auditFile`，
+  每项都能「恢复默认」（等价于从用户层删除该键）。
+- 显示元数据：`locale/zh.json`、`locale/en.json` 的 `meta.title/description`，以及 `./icon` 导出。
+- `schemastery` 成为运行时依赖（schema 与设置页需要）；`Config` 加载失败时插件仍可挂载，只是没有 schema 校验与设置页。
+- 8 个 Config schema 回归用例（默认值、边界拒绝、描述齐全、可序列化、与 `resolveConfig` 一致）。
+
+### Changed
+- 所有 `@deepseek-ai/dsh*` peer 标记为 **optional**：npm 默认会自动安装 peer，而 npm 上这些包只有远古版本
+  （`0.1.0-rc.6`），会让 `npm install` 直接崩在 arborist 里。它们本来只由宿主提供。
+- `check-manifest` 增加客户端半边校验：`dsh.client.platform`、`./client` 导出且走
+  `__ModuleLoader__.load` 且 id 等于包名、locale 元数据、`./icon`、以及文件是否会被打进 tarball。
+- CI 增加 `npm ci`（有了运行时依赖）。
+
 ## [0.1.0] - 2026-10-12
 
 首个版本。目标：让同一 DSH 进程内的会话能互相读、互相发消息，且**不改变目标会话的能力集**。

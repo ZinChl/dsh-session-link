@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Cross-session messaging",
+    "description": "Let sessions in one process read each other and hand work over: list/read existing sessions, deliver a message and wake them (followup/steer/inject), wait for a reply, and query receipts. Envelope protocol, hop budget, capability guard and audit."
+  }
+}

@@ -1,8 +1,8 @@
 {
   "id": "dsh-session-link",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "main": "lib/index.js",
-  "description": "跨会话通信：列出/读取已有会话，并把消息投递给另一个会话且不改变它的 agent preset 与模型（信封协议 + 能力守卫 + 回执 + 审计）",
+  "description": "跨会话通信：列出/读取已有会话，并把消息投递给另一个会话且不改变它的 agent preset 与模型（信封协议 + 跳数预算 + 能力守卫 + 回执 + 审计 + Web 设置页）",
   "engines": {
     "dsh": ">=0.1.0-rc.5"
   },

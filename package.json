@@ -1,6 +1,6 @@
 {
   "name": "dsh-session-link",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "跨会话通信插件 for DeepSeek Harness：列出/读取已有会话，并把消息投递给另一个会话且不改变它的 agent preset 与模型。Cross-session messaging for DSH with envelope protocol, capability guard, receipts and audit.",
   "type": "module",
   "main": "lib/index.js",
@@ -8,10 +8,14 @@
     ".": "./lib/index.js",
     "./tools": "./lib/tools.js",
     "./envelope": "./lib/envelope.js",
+    "./client": "./lib/client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
     "./package.json": "./package.json"
   },
   "files": [
     "lib",
+    "locale/*.json",
     "cordis.patch.yml",
     "icon.svg",
     "dsh.plugin.json",
@@ -27,6 +31,9 @@
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web"
     }
   },
   "peerDependencies": {
@@ -37,7 +44,19 @@
     "@deepseek-ai/dsh-tools": ">=0.1.0-rc.5"
   },
   "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-agent": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-llm": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-session": {
+      "optional": true
+    },
     "@deepseek-ai/dsh-session-query": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-tools": {
       "optional": true
     }
   },
@@ -71,5 +90,8 @@
   },
   "license": "MIT",
   "author": "dw0x",
-  "icon": "./icon.svg"
+  "icon": "./icon.svg",
+  "dependencies": {
+    "schemastery": "^3.18.0"
+  }
 }
