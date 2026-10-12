@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      # 插件零运行时依赖：单测只用 node:test + node 内置模块。
+      - name: Unit tests
+        run: npm test
+
+      - name: Syntax check every published module
+        run: |
+          for file in lib/*.js scripts/*.mjs; do node --check "$file"; done
+
+  manifest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Validate package.json / dsh.plugin.json / cordis.patch.yml
+        run: node scripts/check-manifest.mjs
