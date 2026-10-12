@@ -1,0 +1,9 @@
+# E2E-only overlay: mount the durable workspace registry into a profile that
+# does not ship it (the headless profile's base bundle leaves "workspace in web
+# layers"). Used by scripts/e2e-archived.mjs to exercise the archived-session
+# refusal against the REAL archive set in $DSH_HOME/storages/workspace.json.
+#
+#   dsh --profile headless --patch examples/patch-workspace.yml "<task>"
+- insert:
+    - id: workspace
+      name: '@deepseek-ai/dsh-workspace'

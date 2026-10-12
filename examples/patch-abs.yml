@@ -1,0 +1,17 @@
+# 用 --patch 叠加本插件，不安装进任何 profile：
+#
+#   dsh <profile> --patch /home/dwad/github/dsh-session-link/examples/patch-abs.yml "<task>"
+#
+# name 用**绝对路径**指向插件入口，因此不需要先把包装进 profile 的
+# node_modules —— 这份 overlay 是给端到端验证脚本（scripts/e2e-live.mjs）
+# 和本地试跑用的。正式安装请用：
+#
+#   dsh plugin --profile web add github:ZinChl/dsh-session-link
+- insert:
+    - id: dsh-session-link
+      name: '/home/dwad/github/dsh-session-link/lib/index.js'
+      config:
+        auditFile: '~/.dsh/session-link/audit.ndjson'
+        maxHops: 6
+        rateLimitPerMinute: 30
+        verifyCapability: true

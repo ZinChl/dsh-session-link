@@ -1,0 +1,24 @@
+# dsh-session-link — bundle patch
+#
+# 这一层由 profile 在**根层**插入一行（insert → 根层），所以插件挂载后
+# **所有会话自动获得** session_list / session_read / session_send /
+# session_ask / check_delivery 五个工具，不需要改任何 agent preset。
+#
+# 安装（会同时把包名写进 profile 的 dsh.profile.bundles）：
+#   dsh plugin --profile web add github:ZinChl/dsh-session-link
+# 卸载：
+#   dsh plugin --profile web remove dsh-session-link
+#
+# 想改配置：在 profile 的 cordis.patch.yml 里加一行**同 id** 顶层覆盖
+# （insert 块内的行不可寻址，必须用顶层同 id 行）。字段与默认值见 README。
+#
+# 例：
+# - id: dsh-session-link
+#   name: dsh-session-link
+#   config:
+#     maxHops: 6
+#     rateLimitPerMinute: 12
+#     auditFile: ~/.dsh/session-link/audit.ndjson
+- insert:
+    - id: dsh-session-link
+      name: 'dsh-session-link'

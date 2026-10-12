@@ -1,0 +1,37 @@
+name: Bug 报告
+description: 投递失败、工具报错、行为与文档不符
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请先跑 `npm test` 与 `node scripts/session-log.mjs <sessionId> --capability`，把原始输出贴上来。
+        涉及投递问题时，`~/.dsh/session-link/audit.ndjson` 里对应 requestId 的那几行是最有力的证据。
+  - type: input
+    id: dsh-version
+    attributes:
+      label: DSH 版本
+      description: '`dsh --version` 的输出'
+    validations:
+      required: true
+  - type: input
+    id: node-version
+    attributes:
+      label: Node 版本
+      description: '`node -v` 的输出'
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 发生了什么
+      description: 期望行为 vs 实际行为，附上工具返回原文
+    validations:
+      required: true
+  - type: textarea
+    id: audit
+    attributes:
+      label: 审计行 / 复现命令
+      description: 相关 requestId 的审计行，或最小复现步骤
+    validations:
+      required: false

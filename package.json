@@ -1,0 +1,75 @@
+{
+  "name": "dsh-session-link",
+  "version": "0.1.0",
+  "description": "跨会话通信插件 for DeepSeek Harness：列出/读取已有会话，并把消息投递给另一个会话且不改变它的 agent preset 与模型。Cross-session messaging for DSH with envelope protocol, capability guard, receipts and audit.",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./tools": "./lib/tools.js",
+    "./envelope": "./lib/envelope.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "icon.svg",
+    "dsh.plugin.json",
+    "README.md",
+    "README_EN.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "docs"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-agent": ">=0.1.0-rc.5",
+    "@deepseek-ai/dsh-llm": ">=0.1.0-rc.5",
+    "@deepseek-ai/dsh-session": ">=0.1.0-rc.5",
+    "@deepseek-ai/dsh-session-query": ">=0.1.0-rc.5",
+    "@deepseek-ai/dsh-tools": ">=0.1.0-rc.5"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-session-query": {
+      "optional": true
+    }
+  },
+  "scripts": {
+    "test": "node --test \"tests/**/*.test.mjs\"",
+    "test:watch": "node --test --watch \"tests/**/*.test.mjs\"",
+    "smoke": "node scripts/smoke-host.mjs",
+    "e2e": "node scripts/e2e-live.mjs",
+    "check:manifest": "node scripts/check-manifest.mjs",
+    "check": "for f in lib/*.js scripts/*.mjs; do node --check \"$f\"; done && node scripts/check-manifest.mjs && node --test \"tests/**/*.test.mjs\""
+  },
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "plugin",
+    "bundle",
+    "session",
+    "agent",
+    "messaging",
+    "inter-agent",
+    "a2a",
+    "multi-agent"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ZinChl/dsh-session-link.git"
+  },
+  "homepage": "https://github.com/ZinChl/dsh-session-link#readme",
+  "bugs": {
+    "url": "https://github.com/ZinChl/dsh-session-link/issues"
+  },
+  "license": "MIT",
+  "author": "dw0x",
+  "icon": "./icon.svg"
+}
