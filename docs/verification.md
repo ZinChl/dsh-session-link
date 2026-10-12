@@ -323,4 +323,21 @@ $ dsh --profile web --dump-config | grep -A2 "== dsh-session-link"
 | 验收 3：`listTools` 里看到工具 | 只能在重启后复核；已给出替代证据（真机挂载 + 宿主 schema 编译 + 重启复核命令） | 不重启 GUI（会杀掉用户会话）、不另起服务（指令禁止） |
 | 验收 4「归档会话投递被拒」 | 用真实归档集合验证通过；过程中发现并修复了一个真 bug，副作用如实披露 | 见 4.6 |
 
+---
+
+## 7. 还没被真机覆盖的部分（残余验证缺口）
+
+诚实列出来，供重启后补验：
+
+| 项 | 现状 | 怎么补 |
+|---|---|---|
+| **web profile** 里恢复带 preset 的会话 | 代码路径与宿主 `dsh-api-session-controller.resumeObserved` 一致（`agentPresets.resolve` → `agentPresets.mount(agentCtx, id)`），单测用一个会记录 resolve/mount 的 fake 覆盖；端到端只在 headless profile 跑过（那里的会话没有 preset 头） | 重启后：在 GUI 里对任意旧会话调 `session_send`，看返回里 `capability.presetId` 是否等于该会话的 preset、`drift` 是否为 false |
+| `listTools` 里五个工具的完整 schema | 见第 3 节（宿主判定 restart-required） | 重启后 `cordis_inspect_query provider=Tool method=listTools` |
+| 大会话（10 万级事件）上的 `session_read` 耗时 | 未压测；实现上是「物化一次事件数组 + 取尾部」 | `node scripts/e2e-live.mjs` 之后对一个大会话调 `session_read(limit=20)` 计时 |
+| 多进程并发投递给同一个冷会话 | 有 resume 竞态保护（后到者丢弃自己的 handle），单测未覆盖真实并发 | 两个进程同时 `session_send` 给同一个冷会话，看审计里是否只有一条 delivery 成功、另一条复用或明确失败 |
+
+这些都不影响「装完可用」：失败模式是 fail-closed（拒绝并给原因），不是静默降级。
+
+---
+
 `docs/verification.md` 由 `npm run e2e` 的产物 `e2e-out/e2e-live.json` 支撑，任何人都能重跑复现。
