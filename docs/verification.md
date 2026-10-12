@@ -463,6 +463,28 @@ probe: non-editable field refused: Config field "readDefaultLimit" is not volati
 的重新激活路径，非可编辑字段被明确拒绝 —— 浏览器那一侧只负责把表单渲染出来。
 运行中的 `dsh web` 进程（23:14 启动）仍持有 23:18 之前写的模块，所以那台页面上还是旧文案，重启即一致。
 
+### 4.11.1 重启后的活体复核（23:52:48 起的新进程）
+
+同一句巡检问**新进程**（`dsh web` 起于 23:52:48，晚于修复的 23:18:57）：
+
+```text
+cordis_inspect_query(platform="host", provider="Config", method="listConfigs",
+                     input={entry: "include:dsh-session-link"})
+
+maxHops              → "x-cordis": { "volatile": true }
+rateLimitPerMinute   → "x-cordis": { "volatile": true }
+dedupeWindowMs       → "x-cordis": { "volatile": true }
+verifyCapability     → "x-cordis": { "volatile": true }
+maxTextChars         → "x-cordis": { "volatile": true }
+auditFile            → "x-cordis": { "volatile": true }
+readDefaultLimit / listDefaultLimit / awaitDefaultMs / awaitMaxMs → 无 x-cordis
+```
+
+重启前同一句巡检在这六个位置上**一个 `x-cordis.volatile` 都没有**（同进程里
+`session-log-deepseek` 的 `enabled` 一直带着），这就是「设置页空白」的全部原因：
+宿主投影不出 volatile 表单 → 条目不进设置命名空间 → 页面如实地说"没有这个条目"。
+Web UI 页面此时出现六个可编辑字段，用户确认可用。
+
 ---
 
 ## 5. 卸载干净（对应验收 5）
@@ -523,10 +545,11 @@ $ dsh --profile web --dump-config | grep -A2 "== dsh-session-link"
 |---|---|---|
 | ~~**web profile** 里恢复带 preset 的会话~~ | **已验证**（3.4 / 4.10）：`presetId=standard`、`presetBefore=presetAfter`、`drift=false`，目标被唤醒并回信 | — |
 | ~~`listTools` 里五个工具的完整 schema~~ | **已验证**（3.4）：`fiberPhase: active`，工具表注入 5 个 schema，真机调用成功 | — |
-| `session_read` 的非无损 JSON 修复在运行进程里复验 | 修复 + 3 个回归用例已在离线套件通过（117 全绿）；运行中的进程仍持有修复前的模块 —— 2026-10-12 16:5x 复测仍报同样的错 | 再重启一次 `dsh web`，调 `session_read` 应正常返回（`lib/tools.js` 的深度 `lossless()` 守卫） |
+| ~~`session_read` 的非无损 JSON 修复在运行进程里复验~~ | **已验证**（23:52:48 起的进程）：对无 preset 的会话 `session-4eb3d1b9-…` 调 `session_read(limit=2)` 正常返回（22 条事件 / 返回后 2 条），不再报 `value is not lossless JSON` | — |
+| ~~修复后的模块在**运行中的 web 进程**里挂载~~ | **已验证**（4.11.1）：`fiberPhase: active`，同一进程里 `session_list`/`session_read` 正常，Config 投影六个字段带 `x-cordis.volatile` | — |
 | 大会话（10 万级事件）上的 `session_read` 耗时 | 未压测；实现上是「物化一次事件数组 + 取尾部」 | `node scripts/e2e-live.mjs` 之后对一个大会话调 `session_read(limit=20)` 计时 |
 | 多进程并发投递给同一个冷会话 | 有 resume 竞态保护（后到者丢弃自己的 handle），单测未覆盖真实并发 | 两个进程同时 `session_send` 给同一个冷会话，看审计里是否只有一条 delivery 成功、另一条复用或明确失败 |
-| 修复后的模块在**运行中的 web 进程**里挂载 | 已在本机复刻的真实装配路径上通过（3.3），但运行中的进程还持有旧模块（3.4） | 重启一次 `dsh web`：看 `fiberPhase: active` + `listTools` 出现 5 个工具 |
+| 在 Web UI 里真的点一次「保存」 | 保存路径已用同源的 `settings.mutate` 验证（4.11 的 `--write`），页面按钮本身只由离线用例覆盖 | 打开设置页改一次跳数，看 profile `cordis.patch.yml` 出现 `config: maxHops: N`，审计里随后的投递带新 `maxHops` |
 
 这些都不影响「装完可用」：失败模式是 fail-closed（拒绝并给原因），不是静默降级。
 
