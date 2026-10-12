@@ -51,7 +51,18 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" \
-            --title "$GITHUB_REF_NAME" \
-            --generate-notes \
-            dsh-session-link-*.tgz SHA256SUMS
+          # 有 docs/releases/<tag>.md 就用它当正式 release notes，
+          # 否则退回 GitHub 自动生成的条目（直推 main 时通常很空）。
+          NOTES="docs/releases/${GITHUB_REF_NAME}.md"
+          if [ -f "$NOTES" ]; then
+            gh release create "$GITHUB_REF_NAME" \
+              --title "$GITHUB_REF_NAME" \
+              --notes-file "$NOTES" \
+              dsh-session-link-*.tgz SHA256SUMS
+          else
+            echo "::warning::$NOTES not found, falling back to --generate-notes"
+            gh release create "$GITHUB_REF_NAME" \
+              --title "$GITHUB_REF_NAME" \
+              --generate-notes \
+              dsh-session-link-*.tgz SHA256SUMS
+          fi
