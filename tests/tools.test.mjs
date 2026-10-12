@@ -67,6 +67,29 @@ describe('mount wiring', () => {
     }
   });
 
+  it('survives a definition the host rejects, keeping the other tools', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsl-baddef-'));
+    const host = createHost({ sessions: [sessionFixture('session-b')] });
+    const warnings = [];
+    const errors = [];
+    const ctx = { ...host.ctx, logger: { info() {}, debug() {}, warn: (m) => warnings.push(m), error: (m) => errors.push(m) } };
+    const result = await mountSessionLink({
+      ctx,
+      config: { auditFile: join(dir, 'a.ndjson') },
+      // Reject exactly one definition, the way a schema the host cannot compile would.
+      defineTool: (options) => {
+        if (options.name === 'session_send') throw new Error('unsupported JSON schema: parameters.type');
+        return options;
+      },
+      createUserMessage: fakeCreateUserMessage,
+    });
+    assert.deepEqual(result.failed, ['session_send']);
+    assert.deepEqual(result.toolNames, ['session_list', 'session_read', 'session_ask', 'check_delivery']);
+    assert.equal(host.registeredTools.length, 4);
+    assert.match(errors.join('\n'), /session_send 的定义被宿主拒绝/);
+    void warnings;
+  });
+
   it('survives a duplicate registration and still mounts the rest', async () => {
     const host = createHost({ sessions: [] });
     const warnings = [];
@@ -87,8 +110,9 @@ describe('mount wiring', () => {
       createUserMessage: fakeCreateUserMessage,
     });
     assert.deepEqual(result.toolNames, ['session_read', 'session_send', 'session_ask', 'check_delivery']);
-    assert.equal(warnings.length, 1);
-    assert.match(warnings[0], /注册工具 session_list 失败/);
+    assert.deepEqual(result.failed, ['session_list']);
+    assert.ok(warnings.some((message) => /注册工具 session_list 失败/.test(message)));
+    assert.ok(warnings.some((message) => /1 个工具未生效：session_list/.test(message)));
   });
 
   it('logs the mount with the audit path and limits', async () => {

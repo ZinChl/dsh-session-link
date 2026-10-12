@@ -32,6 +32,14 @@
 - **恢复冷会话必须带模型路由**：只传 `resumeSessionId` 会让 persona 的 `{{model}}` 解析失败、整轮报错。
   这是真机跑出来的结论，别"顺手简化"回文档里的字面写法。
 - **`dsh plugin remove` 会残留 `node_modules/<包名>` 软链**（依赖与 bundles 已清干净）。
+- **宿主的 `defineTool` 会原地改写 options**（把 `parameters` 换成编译后的 JSON Schema）。
+  同一个 option 对象编译两次必炸：`parameters.type must be a value schema object`。
+  所以 `createToolOptions`（纯 spec）与 `createToolDefinitions`（编译一次）必须分开用；
+  回归测试见 `tests/tool-definitions.test.mjs`。
+- **Cordis 缓存已 import 的模块，HMR 不监听 `link:` 依赖**：改完 `lib/` 必须重启 dsh 才生效，
+  `plugin_manager` 的关/开只会拿旧模块重跑 `apply`（会复现同一个错误，别被误导）。
+- 排查插件是否挂上：`plugin_manager list_plugins` 看 `patchId: dsh-session-link` 的 `fiberPhase`
+ （`active` 正常 / `failed` 说明 `apply` 抛错，关一次再开会把原始堆栈放进 `error.diagnostic`）。
 
 ## 改完怎么验
 

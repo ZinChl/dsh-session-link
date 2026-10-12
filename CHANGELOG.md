@@ -30,5 +30,14 @@
   详见 README「三条硬保证」与 docs/verification.md。
 
 ### Fixed
+- **工具定义被编译两次导致 web profile 里整条插件 fiber `failed`**（2026-10-12 装机后实测）：
+  宿主的 `defineTool` 会**原地改写**传入的 options（把 `parameters` 换成编译后的 JSON Schema），
+  而重构后五个定义既在声明处编译、又在末尾 `map(defineTool)` 里编译一次，
+  第二次就报 `JsonSchemaError: unsupported JSON schema: parameters.type must be a value schema object`。
+  现在 `createToolOptions` 只产出原始 spec、`createToolDefinitions` 对**全新对象**只编译一次；
+  并加了 4 个回归测试（用「会原地改写的假 defineTool」模拟宿主行为）、修好了 smoke 脚本
+  （此前它只测了 schema 编译，没有走真实装配路径，所以没拦住这个 bug）。
+- 装配改为**逐个工具**编译+注册：某一个定义被宿主拒绝时只损失那一个工具，
+  不再让整条 fiber 失败、五个工具全没了（有对应测试）。
 - 归档守卫最初读的是 `workspace.archivedSessionIds`（每个 workspace 的字段，实际不存在），
   导致归档会话仍会被唤醒；端到端测试暴露后改为读 `workspaceRegistry.archivedSessionIds`（registry 全局集合）。

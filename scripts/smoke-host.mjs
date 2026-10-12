@@ -69,7 +69,16 @@ const engine = createEngine({
 // `createToolOptions` needs the same dependencies; it returns the raw specs so
 // the host's own `validateArgs` (which takes a spec, not a JSON Schema) can run.
 const options = createToolOptions({ ctx, engine, config });
-/** Compile one option object defensively so a rejection names its tool. */
+
+/**
+ * Compile one option object defensively so a rejection names its tool.
+ *
+ * This is the SAME path the loader takes (`createToolDefinitions` →
+ * `defineTool` per option), which matters: the host's `defineTool` mutates the
+ * options it is given, so compiling an already-compiled object throws
+ * `parameters.type must be a value schema object`. Regression test:
+ * tests/tool-definitions.test.mjs.
+ */
 function compile(entry) {
   try {
     return { definition: defineTool(entry) };
@@ -77,6 +86,7 @@ function compile(entry) {
     return { error, name: entry.name };
   }
 }
+
 const compiled = options.map(compile);
 const failuresToCompile = compiled.filter((entry) => entry.error !== undefined);
 for (const failed of failuresToCompile) {
@@ -86,7 +96,7 @@ for (const failed of failuresToCompile) {
 const definitions = compiled.filter((entry) => entry.definition !== undefined).map((entry) => entry.definition);
 if (failuresToCompile.length > 0) process.exitCode = 1;
 
-/** Sample arguments that must pass the host compiler. */
+/** Sample arguments that must pass the host's own argument validator. */
 const samples = {
   session_list: { query: 'FPGA', limit: 5, includeArchived: true },
   session_read: { sessionId: 'session-1', limit: 10 },

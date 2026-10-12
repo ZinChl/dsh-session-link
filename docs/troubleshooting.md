@@ -14,6 +14,23 @@
    - 用 `--patch` 叠加时 `name` 必须是可解析的**包名**（装进 profile）或**绝对路径**（但绝对路径下
      `@deepseek-ai/dsh-tools` 这类裸导入可能解析不到，见下一条）。
 
+## 重启后工具还是没出现：看 fiberPhase
+
+`plugin_manager list_plugins` 里找到那一行（`patchId: dsh-session-link`）：
+
+| fiberPhase | 含义 | 处理 |
+|---|---|---|
+| `active` | 已挂载 | 工具没出现就是作用域/重名问题，看下面两条 |
+| `failed` | `apply` 抛错了 | 用 `plugin_manager set_plugin` 关一次再开，返回的 `error.diagnostic` 就是原始堆栈 |
+
+2026-10-12 真实撞到过一次 `failed`：宿主 `defineTool` **原地改写** options，
+定义被编译两次 → `JsonSchemaError: unsupported JSON schema: parameters.type must be a value schema object`。
+教训：任何"编译一次"的宿主 API，都要按"入参会被吃掉"来写（`createToolOptions` / `createToolDefinitions` 现在就是这个分工）。
+
+**注意**：改完代码不代表运行中的进程会换新代码。Cordis 会缓存已 import 的模块，
+且 HMR 不监听 `link:` 依赖（本插件的安装形态就是 link）。所以修完必须**重启 dsh**；
+`plugin_manager` 的关/开只会用缓存里的旧模块重跑 `apply`。
+
 ## 用 `--patch` 指向绝对路径时 `failed to import`
 
 插件的裸导入（`@deepseek-ai/dsh-tools`、`@deepseek-ai/dsh-llm`）由**宿主**在 profile 安装位置解析。
