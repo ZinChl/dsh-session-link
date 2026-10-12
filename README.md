@@ -223,6 +223,10 @@ tests/             离线单测
 docs/              协议、验证记录、安装排错
 ```
 
+CI 定义在 `.github/workflows/ci.yml`（Node 22/24 跑单测 + 语法检查 + 清单校验）。
+推送它需要 GitHub token 带 `workflow` scope：`gh auth refresh -s workflow`，然后
+`git add .github/workflows/ci.yml && git commit -m "ci: github actions" && git push`。
+
 细节见 [docs/protocol.md](docs/protocol.md)、[docs/verification.md](docs/verification.md)、[docs/troubleshooting.md](docs/troubleshooting.md)。
 
 ## License
