@@ -23,7 +23,8 @@
     "README_EN.md",
     "CHANGELOG.md",
     "LICENSE",
-    "docs"
+    "docs",
+    "scripts"
   ],
   "engines": {
     "node": ">=22"
@@ -65,6 +66,7 @@
     "test:watch": "node --test --watch",
     "smoke": "node scripts/smoke-host.mjs",
     "e2e": "node scripts/e2e-live.mjs",
+    "probe:settings": "node scripts/probe-settings.mjs",
     "check:manifest": "node scripts/check-manifest.mjs",
     "check": "for f in lib/*.js scripts/*.mjs; do node --check \"$f\"; done && node scripts/check-manifest.mjs && node --test"
   },

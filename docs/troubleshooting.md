@@ -31,6 +31,56 @@
 且 HMR 不监听 `link:` 依赖（本插件的安装形态就是 link）。所以修完必须**重启 dsh**；
 `plugin_manager` 的关/开只会用缓存里的旧模块重跑 `apply`。
 
+## 设置页（Plugins → dsh-session-link）里没有可编辑项
+
+宿主**只为带 `meta.volatile` 的 Config 字段**建设置命名空间（`dsh-settings` 的
+`volatileForm()` 只投影这类字段；一个都没有的条目**根本不进**命名空间列表）。排查顺序：
+
+1. **进程比代码旧**（最常见）：Cordis 缓存已 import 的模块，改完 `lib/` 必须重启 `dsh`，
+   刷新页面不够。先比时间：
+   ```bash
+   ps -o lstart=,args= -p "$(pgrep -f 'dsh web' | head -1)"   # 进程启动时间
+   stat -c '%y %n' lib/config.js                              # 代码改动时间
+   ```
+2. **字段没被标记**：`Config` 的字段必须经 `markEditable()`（内部走 fork 的 `.volatile()`，
+   npm `schemastery` 没有这个方法时直接写 `meta.volatile`）。自检：
+   ```bash
+   node -e "const s=await import('./lib/config.js');const c=await s.createConfigSchema();
+   console.log(Object.entries(c.dict).filter(([,f])=>f.meta.volatile).map(([k])=>k))" --input-type=module
+   ```
+3. **条目不在/被禁用**：`~/.dsh/profiles/<profile>/cordis.patch.yml` 里要有
+   `- id: dsh-session-link` 且 `disabled` 不为 `true`（`plugin_manager list_plugins` 会给出 `fiberPhase`）。
+4. **宿主那句话到底看到了什么**：用巡检工具看宿主投影出来的 JSON Schema，
+   volatile 字段会带 `x-cordis: { volatile: true }`（`session-log-deepseek` 的 `enabled` 就是这样）：
+
+   `cordis_inspect_query(platform="host", provider="Config", method="listConfigs", input={entry:"include:dsh-session-link"})`
+
+   > `entry` 要用**加载器条目 id**（`include:<patchId>`），而设置命名空间用的是 `patchId`，两者不同。
+
+### 一条命令验证「新进程会不会给设置页」
+
+不用浏览器、也不用先重启你正在用的进程 —— 起一个**临时新进程**，让宿主自己的 settings 服务回答：
+
+```bash
+npm run probe:settings              # 只读：命名空间在不在、可编辑字段是哪些、当前值
+npm run probe:settings -- --write   # 再走一次真实写入 + 回滚（验证保存路径）
+```
+
+它把一个一次性 overlay 插件塞进 `dsh --profile headless --patch <临时文件>`（不写 prompt、不调模型），
+让那个进程里的 `ctx.settings.describe()` 汇报本插件条目，然后删掉临时文件。2026-10-12 的真机输出：
+
+```text
+probe: namespaces        …, agent-loop, llm-deepseek, dsh-session-link
+probe: dsh-session-link   PRESENT
+probe: editable fields   maxHops, rateLimitPerMinute, dedupeWindowMs, verifyCapability, maxTextChars, auditFile
+probe: write test        maxHops → 7 (revision 1)      # --write
+probe: reverted to       6
+probe: non-editable field refused: Config field "readDefaultLimit" is not volatile
+```
+
+写测试会在探查用的 profile 里留下这个条目的 `config:` 块（Web UI 保存也是同样写法，那是**宿主**在写，
+不是插件）。所以 `--write` 默认关闭，且只用一次性 profile 跑。
+
 ## 用 `--patch` 指向绝对路径时 `failed to import`
 
 插件的裸导入（`@deepseek-ai/dsh-tools`、`@deepseek-ai/dsh-llm`）由**宿主**在 profile 安装位置解析。

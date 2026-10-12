@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { createConfigSchema } from '../lib/config.js';
+import { EDITABLE_FIELDS, createConfigSchema, markEditable } from '../lib/config.js';
 import { DEFAULT_CONFIG, resolveConfig, unwrapVolatile } from '../lib/engine.js';
 
 const schema = await createConfigSchema();
@@ -34,6 +34,32 @@ describe('Config schema', () => {
       .map(([key]) => key)
       .sort();
     assert.deepEqual(volatile, ['auditFile', 'dedupeWindowMs', 'maxHops', 'maxTextChars', 'rateLimitPerMinute', 'verifyCapability']);
+    // the exported list and the schema must not drift apart
+    assert.deepEqual([...EDITABLE_FIELDS].sort(), volatile);
+  });
+
+  it('marks fields volatile even without the harness fork (plain npm schemastery)', async () => {
+    // The npm package has no `.volatile()`; the harness only reads
+    // `meta.volatile`, so the fallback sets that bit directly. Without it a
+    // user whose install cannot resolve @deepseek-ai/schemastery would get a
+    // schema that validates but never shows a settings page.
+    const { default: plain } = await import('schemastery');
+    const field = plain.number().default(6).description('plain');
+    assert.equal(typeof field.volatile, 'undefined', 'precondition: the npm package has no .volatile()');
+    assert.equal(typeof field, 'function', 'precondition: a schemastery schema is callable, not a plain object');
+    assert.equal(markEditable(field), field, 'the same field object comes back');
+    assert.equal(field.meta.volatile, true);
+    // and the serialized schema carries it, which is what the page rehydrates
+    const json = field.toJSON();
+    const node = json.refs?.[json.uid] ?? json;
+    assert.equal(node.meta.volatile, true);
+  });
+
+  it('never throws on a field that cannot be marked', () => {
+    assert.equal(markEditable(undefined), undefined);
+    assert.equal(markEditable(null), null);
+    const bare = {};
+    assert.equal(markEditable(bare), bare);
   });
 
   it('validates maxHops bounds instead of silently accepting garbage', () => {

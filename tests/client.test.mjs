@@ -236,11 +236,15 @@ describe('client settings page', () => {
     assert.match(text, /cordis\.patch\.yml/);
   });
 
-  it('names the missing namespace and lists what the host does expose', async () => {
+  it('names the missing namespace, its three causes, and what the host does expose', async () => {
     const Page = await loadPage();
     const stub = configFormsStub({ namespaces: [{ ns: 'someone-else' }, { ns: 'ui-chat' }] });
     const text = textOf(double.render(Page, { view: 'page', clientContext: { get: () => stub.service } })).join(' | ');
-    assert.match(text, /没有暴露 dsh-session-link 的设置条目/);
+    assert.match(text, /没暴露 dsh-session-link 的设置条目/);
+    // the three causes an empty page actually has, so the reader can self-diagnose
+    assert.match(text, /dsh 进程启动早于插件更新/);
+    assert.match(text, /meta\.volatile/);
+    assert.match(text, /被 disabled/);
     assert.match(text, /宿主当前已注册：someone-else、ui-chat/);
   });
 

@@ -426,6 +426,45 @@ TOOL session_send(mode=steer) → 投递被拒绝 [TARGET_NOT_RUNNING]：目标�
 
 ---
 
+## 4.11 设置页（v0.2.0）：命名空间、可编辑字段、保存路径
+
+设置页此前三次真机空白，根因是宿主**只为带 `meta.volatile` 的 Config 字段**建设置命名空间。
+`lib/` 改完必须重启 dsh（Cordis 缓存已 import 的模块），所以这里不依赖浏览器，直接问**新起的进程**里的
+宿主 settings 服务（`npm run probe:settings`，一次性 overlay，不写 prompt、不调模型）：
+
+```text
+probe: namespaces        session-log-deepseek, agent-default-model, llm-pi-ai, bash-sandbox, permission,
+                         subagent, web-search-deepseek, agent-loop, llm-deepseek, llm-deepseek-account,
+                         dsh-session-link
+probe: dsh-session-link   PRESENT
+probe: editable fields   maxHops, rateLimitPerMinute, dedupeWindowMs, verifyCapability, maxTextChars, auditFile
+probe: resolved values   {"maxHops":6,"rateLimitPerMinute":12,"dedupeWindowMs":300000,"verifyCapability":true,"maxTextChars":8000,"auditFile":"~/.dsh/session-link/audit.ndjson"}
+probe: OK — a fresh dsh process exposes the settings page for this plugin.
+```
+
+`--write` 再走一遍浏览器保存用的同一条路径（`configForms.mutate` → 宿主 `settings.mutate`）：
+
+```text
+probe: write test        maxHops → 7 (revision 1)
+probe: reverted to       6
+probe: non-editable field refused: Config field "readDefaultLimit" is not volatile
+```
+
+写入落到了探查 profile 的 `cordis.patch.yml`（宿主自己的写法）：
+
+```yaml
+- id: dsh-session-link
+  name: dsh-session-link
+  config:
+    maxHops: 7
+```
+
+结论：`describe()` 该给的六项都给（值来自解析后的 live config），保存会走 `applies: "live"`
+的重新激活路径，非可编辑字段被明确拒绝 —— 浏览器那一侧只负责把表单渲染出来。
+运行中的 `dsh web` 进程（23:14 启动）仍持有 23:18 之前写的模块，所以那台页面上还是旧文案，重启即一致。
+
+---
+
 ## 5. 卸载干净（对应验收 5）
 
 ```

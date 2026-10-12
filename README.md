@@ -185,6 +185,14 @@ check_delivery(requestId="req_…")                    # 回执 / 为什么没�
 > 其余参数（默认读取条数、等待上限等）仍走 patch —— 它们不值得占一页 UI。
 > 另外注意：volatile 字段在宿主解析后是 `{ get() }` 包装对象，插件内部在 `resolveConfig()` 里统一解包。
 
+> **页面是空的？** 最常见的原因是**改完 `lib/` 没重启 dsh**：Cordis 缓存已 import 的模块，刷新页面不换代码。
+> 页面会把「宿主已注册的命名空间」列出来；要更硬的答案，用仓库自带的自检（起一个临时新进程，不开浏览器）：
+>
+> ```bash
+> npm run probe:settings              # 命名空间在不在、可编辑字段、当前值
+> npm run probe:settings -- --write   # 再验一次真实保存 + 回滚
+> ```
+
 ## 配置（patch / 无人值守）
 
 在 profile 的 `cordis.patch.yml` 里加一行**同 id 顶层覆盖**（`insert` 块里的行不可寻址）：

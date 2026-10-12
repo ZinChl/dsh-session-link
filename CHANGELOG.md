@@ -7,10 +7,15 @@
 ### Added
 - **Web 设置页（跳数可调）**：侧边栏 → Plugins → dsh-session-link → 配置。
   宿主侧导出 schemastery `Config`（字段带范围与描述），浏览器半边 `lib/client.js` 注册进
-  `plugins.bundle.config` 槽，通过 `ctx.remote.settings` 读写该条目的 Config；
+  `plugins.bundle.config` 槽，通过 settings 域自己的客户端服务 `ctx.configForms` 读写该条目的 Config；
   `applies: 'live'`，保存后宿主重新激活条目，**不用重启 dsh** 就能改跳数上限等参数。
   可改：`maxHops` / `rateLimitPerMinute` / `dedupeWindowMs` / `maxTextChars` / `verifyCapability` / `auditFile`，
   每项都能「恢复默认」（等价于从用户层删除该键）。
+- `npm run probe:settings`：**不用浏览器**验证「新起的 dsh 进程会不会给这个插件建设置页」——
+  把一次性 overlay 插件塞进 `dsh --profile headless --patch <临时文件>`（不写 prompt、不调模型），
+  读回宿主 `ctx.settings.describe()` 的结论（命名空间/可编辑字段/当前值），`--write` 再走一次真实写入+回滚。
+  2026-10-12 真机结果：`dsh-session-link PRESENT`、六个可编辑字段、`maxHops → 7`（revision 1）后回滚到 6、
+  非可编辑字段被拒 `Config field "readDefaultLimit" is not volatile`。
 - 显示元数据：`locale/zh.json`、`locale/en.json` 的 `meta.title/description`，以及 `./icon` 导出。
 - `schemastery` 成为运行时依赖（schema 与设置页需要）；`Config` 加载失败时插件仍可挂载，只是没有 schema 校验与设置页。
 - 8 个 Config schema 回归用例（默认值、边界拒绝、描述齐全、可序列化、与 `resolveConfig` 一致）。
@@ -28,6 +33,12 @@
   且 `status` 四态里 `idle` 表示「还没有答案」，不能当成 `ready` 去查命名空间。
 - 数据源改为「宿主表单 props.form → `ctx.configForms`（settings 域自己的客户端服务）→ 可读说明」，
   只硬依赖 `slots`；真找不到时把宿主已注册的命名空间列在错误信息里，便于一眼定位。
+- **空设置页的提示改成三个真原因**（旧文案只说「确认 patch 里有这一行」，把最常见的原因藏了）：
+  ① 进程启动早于插件更新（改 `lib/` 必须重启，刷新页面不够）；② Config 没有可编辑字段；③ 条目缺失或被禁用。
+- `.volatile()` 缺失时的兜底改为直接写 `meta.volatile`（宿主只读这个标记），
+  这样即便部署里解析不到 `@deepseek-ai/schemastery`，设置页照样出现；`EDITABLE_FIELDS` 导出并与
+  schema 的 volatile 集合互相钉住（回归用例）。注意 schemastery 的 schema 是**可调用对象**
+  （`typeof` 是 `function`），判断"能不能标记"不能写成 `typeof === 'object'`。
 
 ### Changed
 - 所有 `@deepseek-ai/dsh*` peer 标记为 **optional**：npm 默认会自动安装 peer，而 npm 上这些包只有远古版本

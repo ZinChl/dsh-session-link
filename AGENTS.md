@@ -46,15 +46,23 @@
   而且 volatile 字段解析出来是 `{ get(), Symbol(cosmokit.volatile.write) }` 包装对象 —— 读之前必须解包
   （`lib/engine.js` 的 `resolveConfig()` 已统一处理，别在别处直接读 `config.x`）。
 - **排查插件是否挂上：`plugin_manager list_plugins` 看 `patchId: dsh-session-link` 的 `fiberPhase`
- （`active` 正常 / `failed` 说明 `apply` 抛错，关一次再开会把原始堆栈放进 `error.diagnostic`）。
+  （`active` 正常 / `failed` 说明 `apply` 抛错，关一次再开会把原始堆栈放进 `error.diagnostic`）。
+- **设置页空白的三个真原因**（按概率）：① 进程启动早于代码改动（`ps -o lstart= -p $(pgrep -f 'dsh web')`
+  vs `stat -c %y lib/config.js`）；② Config 没标 volatile 字段；③ patch 里条目缺失/被 disabled。
+  干活时想立刻知道答案就用 `npm run probe:settings`：它起一个**新进程**（headless + `--patch` overlay，
+  不写 prompt、不调模型）让宿主自己的 `ctx.settings.describe()` 汇报本条目，`--write` 再验一次保存路径。
+- **宿主的 Config 巡检**：`cordis_inspect_query(platform="host", provider="Config", method="listConfigs")`
+  —— `input.entry` 用加载器 id（`include:dsh-session-link`），设置命名空间用的是 `patchId`（`dsh-session-link`）；
+  投影里带 `x-cordis.volatile` 的字段才是设置页能编辑的。
 
 ## 改完怎么验
 
 ```bash
-npm test                 # 139 个离线单测（改 lib/ 必跑）
-npm run check:manifest   # 清单与兼容门
-npm run smoke            # 用宿主自己的 defineTool/validateArgs 编译工具定义
-npm run e2e              # 真机端到端（需要插件已装进 headless profile）
+npm test                    # 141 个离线单测（改 lib/ 必跑）
+npm run check:manifest      # 清单与兼容门
+npm run smoke               # 用宿主自己的 defineTool/validateArgs 编译工具定义
+npm run probe:settings      # 新进程里的设置命名空间（可加 --write 验保存路径）
+npm run e2e                 # 真机端到端（需要插件已装进 headless profile）
 ```
 
 `npm run e2e` 会往 `~/.dsh/session-link/audit.ndjson` 与真实会话目录写东西：
