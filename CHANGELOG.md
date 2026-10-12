@@ -17,6 +17,18 @@
 - 7 个**浏览器半边**回归用例：用一个最小 React 替身（含 render-phase setState 收敛与 mount effect）跑组件，覆盖
   「宿主表单 / configForms 服务 / 缺失通道」三条数据源分支、summary 视图、以及 save/重置按钮的启用条件。
 
+### Fixed（设置页三次真机失败的根因）
+- **设置命名空间只暴露 `.volatile()` 字段**：宿主 `dsh-settings` 的 `volatileForm()` 只投影 `meta.volatile` 字段，
+  没有 volatile 字段的条目不会出现在设置命名空间里 —— 所以页面上一直没有可编辑项。
+  六个 UI 字段现在标记为 volatile；`.volatile()` 来自 `@deepseek-ai/schemastery`（DSH fork），
+  加载顺序改为「fork → npm 包（只做校验）」，并在 schema 里对方法缺失做兜底。
+- **volatile 字段是 `{ get() }` 包装对象**：`resolveConfig()` 现在统一解包（并加类型护栏），
+  否则引擎会把包装对象当数字用；新增回归用例覆盖「包装值 → plain 值」。
+- 客户端读取镜像快照时用错字段：答案在 `snapshot.view`（`SettingsDescribeView`）而不是 `snapshot.value`；
+  且 `status` 四态里 `idle` 表示「还没有答案」，不能当成 `ready` 去查命名空间。
+- 数据源改为「宿主表单 props.form → `ctx.configForms`（settings 域自己的客户端服务）→ 可读说明」，
+  只硬依赖 `slots`；真找不到时把宿主已注册的命名空间列在错误信息里，便于一眼定位。
+
 ### Changed
 - 所有 `@deepseek-ai/dsh*` peer 标记为 **optional**：npm 默认会自动安装 peer，而 npm 上这些包只有远古版本
   （`0.1.0-rc.6`），会让 `npm install` 直接崩在 arborist 里。它们本来只由宿主提供。

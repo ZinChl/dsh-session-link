@@ -93,5 +93,8 @@
   "icon": "./icon.svg",
   "dependencies": {
     "schemastery": "^3.18.0"
+  },
+  "devDependencies": {
+    "@deepseek-ai/schemastery": "^3.18.4"
   }
 }

@@ -180,6 +180,11 @@ check_delivery(requestId="req_…")                    # 回执 / 为什么没�
 每个字段旁边显示「默认 N」与「已覆盖」标记，可以逐项**恢复默认**（等价于从用户层删掉该键）。
 同一份配置当然也可以用下面的 patch 方式改 —— 两条路落到同一处。
 
+> **为什么只有这六个字段出现在设置页**：宿主的规则是「只有 Config 里标记为 `.volatile()` 的字段才进设置命名空间」
+> （`dsh-settings` 的 `volatileForm()` 只投影这些字段）。这六个是运行时可安全热改的旋钮，就标了 volatile；
+> 其余参数（默认读取条数、等待上限等）仍走 patch —— 它们不值得占一页 UI。
+> 另外注意：volatile 字段在宿主解析后是 `{ get() }` 包装对象，插件内部在 `resolveConfig()` 里统一解包。
+
 ## 配置（patch / 无人值守）
 
 在 profile 的 `cordis.patch.yml` 里加一行**同 id 顶层覆盖**（`insert` 块里的行不可寻址）：

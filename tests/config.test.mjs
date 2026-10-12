@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { createConfigSchema } from '../lib/config.js';
-import { DEFAULT_CONFIG, resolveConfig } from '../lib/engine.js';
+import { DEFAULT_CONFIG, resolveConfig, unwrapVolatile } from '../lib/engine.js';
 
 const schema = await createConfigSchema();
 
@@ -15,16 +15,30 @@ describe('Config schema', () => {
     const resolved = schema({});
     for (const [key, value] of Object.entries(DEFAULT_CONFIG)) {
       if (key in resolved) {
-        assert.deepEqual(resolved[key], value, `${key} schema default must equal DEFAULT_CONFIG`);
+        // Volatile fields resolve to a `{get()}` wrapper; unwrap before comparing.
+        assert.deepEqual(unwrapVolatile(resolved[key]), value, `${key} schema default must equal DEFAULT_CONFIG`);
       }
     }
-    assert.equal(resolved.maxHops, 6);
-    assert.equal(resolved.verifyCapability, true);
+    assert.equal(unwrapVolatile(resolved.maxHops), 6);
+    assert.equal(unwrapVolatile(resolved.verifyCapability), true);
+  });
+
+  it('marks exactly the settings-page fields volatile', () => {
+    // The harness only gives an entry a settings namespace when its Config has
+    // volatile fields (`dsh-settings`' volatileForm projection), so this set is
+    // what the Web UI can edit live.
+    const json = schema.toJSON();
+    const root = json.refs[json.uid] ?? Object.values(json.refs).find((node) => node.dict !== undefined);
+    const volatile = Object.entries(root.dict)
+      .filter(([, reference]) => json.refs[reference]?.meta?.volatile === true)
+      .map(([key]) => key)
+      .sort();
+    assert.deepEqual(volatile, ['auditFile', 'dedupeWindowMs', 'maxHops', 'maxTextChars', 'rateLimitPerMinute', 'verifyCapability']);
   });
 
   it('validates maxHops bounds instead of silently accepting garbage', () => {
-    assert.equal(schema({ maxHops: 1 }).maxHops, 1);
-    assert.equal(schema({ maxHops: 64 }).maxHops, 64);
+    assert.equal(unwrapVolatile(schema({ maxHops: 1 }).maxHops), 1);
+    assert.equal(unwrapVolatile(schema({ maxHops: 64 }).maxHops), 64);
     assert.throws(() => schema({ maxHops: 0 }), /maxHops/);
     assert.throws(() => schema({ maxHops: 65 }), /maxHops/);
     assert.throws(() => schema({ maxHops: 'many' }), /maxHops/);
@@ -52,12 +66,30 @@ describe('Config schema', () => {
     assert.ok(text.length > 100);
   });
 
-  it('feeds resolveConfig with a complete, clamped configuration', () => {
+  it('feeds resolveConfig plain values even though volatile fields wrap them', () => {
     const effective = resolveConfig(schema({ maxHops: 3, verifyCapability: false }));
+    assert.equal(typeof effective.maxHops, 'number');
     assert.equal(effective.maxHops, 3);
     assert.equal(effective.verifyCapability, false);
     // untouched keys keep engine defaults
     assert.equal(effective.rateLimitPerMinute, DEFAULT_CONFIG.rateLimitPerMinute);
+    // and every value the engine will use is plain data
+    for (const [key, value] of Object.entries(effective)) {
+      const expected = DEFAULT_CONFIG[key];
+      assert.equal(typeof value, typeof expected, `${key} must be a plain ${typeof expected}`);
+    }
+  });
+
+  it('unwraps volatile wrappers defensively', () => {
+    const wrapped = schema({ maxHops: 9 }).maxHops;
+    assert.equal(typeof wrapped, 'object');
+    assert.equal(unwrapVolatile(wrapped), 9);
+    assert.equal(unwrapVolatile(9), 9);
+    assert.equal(unwrapVolatile(undefined), undefined);
+    // An object that merely has a `get` method is NOT a volatile wrapper: the
+    // marker symbol is what identifies one, so it must pass through untouched.
+    const lookalike = { get: () => 1 };
+    assert.equal(unwrapVolatile(lookalike), lookalike);
   });
 
   it('keeps resolveConfig usable without a schema (defensive host path)', () => {

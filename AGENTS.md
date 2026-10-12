@@ -40,7 +40,12 @@
   `plugin_manager` 的关/开只会拿旧模块重跑 `apply`（会复现同一个错误，别被误导）。
 - **`sessionQuery.readTitleSnapshots`（批量）在本机会返回空、`readTitle`（单个）却正常**：
   `lib/sessions.js` 的 `titlesFor` 已做逐个回退并把原因写进 `degraded`，别把批量当唯一来源。
-- 排查插件是否挂上：`plugin_manager list_plugins` 看 `patchId: dsh-session-link` 的 `fiberPhase`
+- **设置页 = `.volatile()` 字段**：宿主 `dsh-settings` 的 `volatileForm()` 只投影标了 `meta.volatile` 的 Config 字段，
+  没有 volatile 字段的条目**根本不会出现在设置命名空间里**（Plugins 页的配置表单就无从渲染）。
+  `.volatile()` 是 `@deepseek-ai/schemastery`（DSH fork）的方法，npm 上的 `schemastery` 没有；
+  而且 volatile 字段解析出来是 `{ get(), Symbol(cosmokit.volatile.write) }` 包装对象 —— 读之前必须解包
+  （`lib/engine.js` 的 `resolveConfig()` 已统一处理，别在别处直接读 `config.x`）。
+- **排查插件是否挂上：`plugin_manager list_plugins` 看 `patchId: dsh-session-link` 的 `fiberPhase`
  （`active` 正常 / `failed` 说明 `apply` 抛错，关一次再开会把原始堆栈放进 `error.diagnostic`）。
 
 ## 改完怎么验
