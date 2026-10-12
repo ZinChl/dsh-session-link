@@ -59,12 +59,12 @@ $ dsh --profile web --dump-config | grep -A3 "== dsh-session-link"
 ## 2. 自动化测试（对应验收 6）
 
 ```
-$ npm test
-ℹ tests 109
-ℹ suites 37
-ℹ pass 109
+$ npm test            # = node --test（自动发现）
+ℹ tests 114
+ℹ suites 38
+ℹ pass 114
 ℹ fail 0
-ℹ duration_ms 1347.214635
+ℹ duration_ms 1173.090257
 ```
 
 覆盖的硬约束（每个都有对应测试）：
@@ -106,35 +106,101 @@ ok   check_delivery  (1 params, output schema object)
 
 ---
 
-## 3. 工具在运行进程里可见（对应验收 3）—— 没做到的部分与替代证据
+## 3. 工具在运行进程里可见（对应验收 3）—— 两次真机 bug 与最终结论
 
-**结论先说**：`cordis_inspect_query provider=Tool method=listTools` 在**当前这个 GUI 进程**里看不到五个工具，
-因为该进程是在插件安装**之前**启动的。用 harness 自带的安装路径确认了这一点：
+**结论**：第一次重启后**没**挂上（加载条目 `fiberPhase: failed`），定位到根因并修好后，同一行
+现在用宿主自己的装配路径验证通过（见 3.3）。下面是完整过程，因为这两次失败比"一次成功"更有信息量。
+
+### 3.1 第一次重启：条目存在但 `failed`
 
 ```
-plugin_manager install_bundle(target=/home/dwad/github/dsh-session-link)
-→ {"stage":"enable","target":"dsh-session-link","enabled":true,"changed":false,
-   "application":"restart-required", ...}
+$ dsh plugin --profile web --dump-config | grep -A3 "== dsh-session-link"
+# == dsh-session-link
+- id: dsh-session-link
+  name: dsh-session-link                # 组合没问题
+
+$ plugin_manager list_plugins（截取）
+{"entryId":"include:dsh-session-link","moduleName":"dsh-session-link",
+ "enabled":true,"fiberPhase":"failed","patchId":"dsh-session-link"}   # 挂载失败
+
+$ 调用 session_list
+Error: unknown tool "session_list"
 ```
 
-`application: restart-required` 是宿主自己的判定：profile 变更需要重启进程才生效。
-验收文档第 3 条要求的「`listTools` 里能看到三个工具的完整 schema」因此**只能在重启后**复核。
-我**没有**重启这个 GUI（那会杀掉你正在用的会话），也没有另起一个 web 服务（指令明确不要）。
+失败原因用 `plugin_manager set_plugin`（关一次再开）拿到，返回体里带**原始堆栈**：
 
-替代证据（都是真进程、真模型、真工具）：
+```
+{"application":"failed","error":{"diagnostic":"dsh: warning: 1 entry did not activate
+dsh-session-link (dsh-session-link): JsonSchemaError: unsupported JSON schema:
+parameters.type must be a value schema object
+    at defineTool (.../dsh-tools/lib/index.js:848:21)
+    at .../lib/tools.js:676:33
+    at createToolDefinitions (.../lib/tools.js:676:18)
+    at mountSessionLink (.../lib/mount.js:45:23)
+    at async Object.apply [as callback] (.../lib/index.js:63:3)"}}
+```
 
-1. **真进程里挂载成功**：在 `headless` profile 里装同一个包，一次真实运行里模型成功调用了工具（见第 4 节）。
-   挂载日志（stderr）会打印 `dsh-session-link: 已挂载（session_list / … ），审计日志 …，跳数上限 6，限流 30/分钟`。
-2. **schema 由宿主自己编译**：上面 `npm run smoke` 用的就是宿主安装目录里的 `defineTool` 与 `validateArgs`，
-   五个定义全部通过，错误类型的参数会被拒 —— 与 `listTools` 会拿到的定义是同一份。
-3. **重启后复核方法**（任何人都能跑）：
+### 3.2 根因：宿主的 `defineTool` **原地改写** options，而我把定义编译了两次
 
-   ```bash
-   # 重启 dsh web 之后：
-   cordis_inspect_query platform=host provider=Tool method=listTools   # 应出现 5 个工具
-   ```
+在本机复刻出同一条路径（把 lib 拷进一个能按宿主方式解析裸导入的目录，再用真实 `defineTool` 装配），
+逐条打印每个工具编译时的 `parameters`，抓到了现场：
 
----
+```
+FAIL session_list: unsupported JSON schema: parameters.type must be a value schema object
+parameters keys: [ 'type', 'properties' ]      ← 已经不是属性表，而是编译后的 JSON Schema
+  type: "object"
+  properties: {"query":{...},"limit":{...},"includeArchived":{...}}
+compiled before failure: session_list, session_read, session_send, session_ask, check_delivery, session_list
+```
+
+即：`session_list` 被编译了**两次**，第二次拿到的是已被宿主改写过的对象。
+成因是重构时留下的双重编译——五个定义既在声明处 `defineTool({…})`，又在末尾
+`options.map(entry => defineTool(entry))` 里再编译一次。
+
+单测和 smoke 当时都没拦住，因为：
+- 单测注入的是**假 `defineTool`**（`(o) => o`，不改写）；
+- `smoke-host.mjs` 在重构后只测了"schema 能不能编译"，没有走真实的装配入口。
+
+### 3.3 修复与回归
+
+```
+lib/tools.js
+  createToolOptions()      ← 只产出原始 spec（每次都是全新对象）
+  createToolDefinitions()  ← 对全新对象只编译一次
+lib/mount.js
+  逐个工具 编译 + 注册：某一个定义被拒只损失那一个工具，不再让整条 fiber 失败
+```
+
+新增 `tests/tool-definitions.test.mjs`（4 个用例）：用一个**会原地改写的假 `defineTool`** 模拟宿主行为，断言
+「每个工具只编译一次」「可重复编译」「`createToolOptions` 的 spec 不被污染」「单个定义被拒时其余仍挂载」。
+`smoke-host.mjs` 也改回走真实装配路径。修复后同一套复刻脚本：
+
+```
+$ node repro.mjs        # 真实 defineTool + 真实 createUserMessage + 真实装配入口
+registered session_list
+registered session_read
+registered session_send
+registered session_ask
+registered check_delivery
+info: dsh-session-link: 已挂载（session_list / session_read / session_send / session_ask / check_delivery），审计日志 …，跳数上限 6，限流 12/分钟
+mounted ok
+```
+
+### 3.4 还没做完的那一下
+
+Cordis 会缓存已 import 的模块，而 HMR **不监听 `link:` 依赖**（本插件就是 link 安装），
+所以 `plugin_manager` 的关/开只会拿缓存里的旧模块重跑 `apply`：
+
+```
+$ plugin_manager set_plugin(enabled:false) → applied
+$ plugin_manager set_plugin(enabled:true)  → failed（堆栈仍指向 lib/tools.js:676，即旧代码）
+$ touch lib/*.js && 调用 session_list → unknown tool（HMR 没接管）
+```
+
+**因此还需要重启一次 `dsh web` 才能把修复加载进来。** 重启后：
+`plugin_manager list_plugins` 该行应为 `fiberPhase: active`，我的工具表里应出现 5 个工具，
+`cordis_inspect_query provider=Tool method=listTools` 里应能看到它们的完整 schema（验收 3 由这一步闭环）。
+在此之前，验收 3 的替代证据是：宿主自己的 `defineTool` 拒绝/接受行为（上）+ 真机进程里模型成功调用工具（第 4 节）。
 
 ## 4. 端到端 A→B→A（对应验收 4）
 
@@ -335,6 +401,7 @@ $ dsh --profile web --dump-config | grep -A2 "== dsh-session-link"
 | `listTools` 里五个工具的完整 schema | 见第 3 节（宿主判定 restart-required） | 重启后 `cordis_inspect_query provider=Tool method=listTools` |
 | 大会话（10 万级事件）上的 `session_read` 耗时 | 未压测；实现上是「物化一次事件数组 + 取尾部」 | `node scripts/e2e-live.mjs` 之后对一个大会话调 `session_read(limit=20)` 计时 |
 | 多进程并发投递给同一个冷会话 | 有 resume 竞态保护（后到者丢弃自己的 handle），单测未覆盖真实并发 | 两个进程同时 `session_send` 给同一个冷会话，看审计里是否只有一条 delivery 成功、另一条复用或明确失败 |
+| 修复后的模块在**运行中的 web 进程**里挂载 | 已在本机复刻的真实装配路径上通过（3.3），但运行中的进程还持有旧模块（3.4） | 重启一次 `dsh web`：看 `fiberPhase: active` + `listTools` 出现 5 个工具 |
 
 这些都不影响「装完可用」：失败模式是 fail-closed（拒绝并给原因），不是静默降级。
 
