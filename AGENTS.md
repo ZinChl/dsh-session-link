@@ -44,7 +44,7 @@
 ## 改完怎么验
 
 ```bash
-npm test                 # 114 个离线单测（改 lib/ 必跑）
+npm test                 # 116 个离线单测（改 lib/ 必跑）
 npm run check:manifest   # 清单与兼容门
 npm run smoke            # 用宿主自己的 defineTool/validateArgs 编译工具定义
 npm run e2e              # 真机端到端（需要插件已装进 headless profile）

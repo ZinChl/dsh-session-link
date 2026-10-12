@@ -60,11 +60,11 @@ $ dsh --profile web --dump-config | grep -A3 "== dsh-session-link"
 
 ```
 $ npm test            # = node --test（自动发现）
-ℹ tests 114
+ℹ tests 116
 ℹ suites 38
-ℹ pass 114
+ℹ pass 116
 ℹ fail 0
-ℹ duration_ms 1173.090257
+ℹ duration_ms 1154.711231
 ```
 
 覆盖的硬约束（每个都有对应测试）：
@@ -186,21 +186,47 @@ info: dsh-session-link: 已挂载（session_list / session_read / session_send /
 mounted ok
 ```
 
-### 3.4 还没做完的那一下
-
-Cordis 会缓存已 import 的模块，而 HMR **不监听 `link:` 依赖**（本插件就是 link 安装），
-所以 `plugin_manager` 的关/开只会拿缓存里的旧模块重跑 `apply`：
+### 3.4 第二次重启：挂上了，验收 3 闭环
 
 ```
-$ plugin_manager set_plugin(enabled:false) → applied
-$ plugin_manager set_plugin(enabled:true)  → failed（堆栈仍指向 lib/tools.js:676，即旧代码）
-$ touch lib/*.js && 调用 session_list → unknown tool（HMR 没接管）
+$ plugin_manager list_plugins
+{"entryId":"include:dsh-session-link","moduleName":"dsh-session-link",
+ "enabled":true,"fiberPhase":"active","patchId":"dsh-session-link"}        # ← active
 ```
 
-**因此还需要重启一次 `dsh web` 才能把修复加载进来。** 重启后：
-`plugin_manager list_plugins` 该行应为 `fiberPhase: active`，我的工具表里应出现 5 个工具，
-`cordis_inspect_query provider=Tool method=listTools` 里应能看到它们的完整 schema（验收 3 由这一步闭环）。
-在此之前，验收 3 的替代证据是：宿主自己的 `defineTool` 拒绝/接受行为（上）+ 真机进程里模型成功调用工具（第 4 节）。
+重启后宿主把我的工具 schema 注入了这个会话的工具表（客户端回执里的 `### Updated Tool Schemas` 列全了 5 个），
+而且是真的能调：
+
+```
+$ session_list(limit=10)
+会话共 132 个（只列前 10 个）
+- session-69f3469d-… | (无标题) | /home/dwad/github | live,running,self,preset=standard | 2026-10-12T08:45:28.618Z
+- session-a886dd00-… | (无标题) | /home/dwad/github | cold,idle,preset=standard    | 2026-10-12T07:58:48.280Z
+…
+! 已隐藏 31 个归档会话（includeArchived=true 可查看）
+```
+
+注意两点：`self` 被正确标出；**归档集合读的是真实 registry**（隐藏了 31 个），这条守卫现在有真机证据了。
+
+### 3.5 真机跑通后又暴露一个：`session_read` 不是 lossless JSON
+
+```
+$ session_read(sessionId="session-a886dd00-…")
+Error: tool "session_read" returned invalid output: value is not lossless JSON
+```
+
+根因：目标会话**没有标题**（标题服务无结果），`titleOf()` 返回 `undefined`，而我把 `title/cwd/agentPreset`
+直接放进了返回值 —— 宿主的结果校验要求"无损 JSON"，`undefined` 成员直接判非法。
+`session_read` 与 `session_list` 的顶层都补了 `compact()`，并加了两个回归用例
+（"没有会话身份的调用方" / "没有标题/cwd/preset 的会话"）。
+
+这条同样需要重启才生效（3.4 里说的模块缓存）。**这是本次唯一还没在运行进程里复验的修复。**
+
+### 3.6 结论
+
+验收 3 闭环：`fiberPhase: active` + 工具表注入 + 真机调用成功。
+过程中真机一共抓出 3 个只有端到端才能暴露的问题（归档集合读错位置、`defineTool` 双重编译、
+`session_read` 非无损 JSON），全部已修 + 已加回归测试。
 
 ## 4. 端到端 A→B→A（对应验收 4）
 
@@ -266,6 +292,46 @@ B 按信封里的指引用 `session_send` 回信，A 侧收到后其回执被推
 ```
 
 `thread` 沿用、`hop` 变成 `2/6` —— 线程与跳数预算是在真机上工作的。
+
+### 4.10 真机（**web profile**）：带 preset 的冷会话恢复 + 回信，跳数 2/6
+
+上面 4.1~4.9 跑在 headless profile（那里的会话没有 preset 头）。最后在**主部署路径**（web profile，
+会话带 `preset=standard`）上补了同样一遍，目标选的是一个空的冷会话 `session-a886dd00-…`：
+
+```
+$ session_send(sessionId="session-a886dd00-…", requestId="req_verify_preset_20261012", text="…只回复 LINK-VERIFY-OK…")
+已投递 followup → session-a886dd00-ac52-4adb-884b-0d61d5832c66
+requestId=req_verify_preset_20261012 thread=th_fbjmilzhlh3j hop=1/6 chars=75
+目标状态：冷会话，已按它自己的 preset/模型恢复
+能力守卫：preset standard → standard，model ? → ?（未改变）
+```
+
+审计行（注意 `presetId=standard`、`resumeRoute=deployment-default`、`drift=false`）：
+
+```json
+{"kind":"delivery","requestId":"req_verify_preset_20261012","from":"session-69f3469d-…","to":"session-a886dd00-…",
+ "hop":1,"maxHops":6,"capability":{"guarded":true,"resumed":true,"resumeRoute":"deployment-default",
+ "presetId":"standard","presetBefore":"standard","presetAfter":"standard","drift":false}}
+```
+
+`resumeRoute=deployment-default` 是因为这个空会话**没有任何 `request/header` 记录**（没跑过模型），
+所以没有"自己的模型路由"可replay，按宿主默认选择恢复；preset 走的是 `agentPresets.mount(agentCtx,'standard')`。
+
+目标被唤醒后真的跑了，并且**用协议回了信**（它的会话日志）：
+
+```
+#9  user/message  [envelope] [session-link] 你收到一条来自另一个 DSH 会话（Agent）的消息…
+#23 assistant/message  已通过 session_send 回送 `LINK-VERIFY-OK`（hop 2/6，requestId `req_7jjv44wftf5a`）。能力守卫回执：目标会话 preset `stan…
+#25 turn/end completed
+```
+
+回信本身也进了审计（方向相反、跳数 +1、能力守卫同样为 false）：
+
+```
+delivery: session-a886dd00-… → session-69f3469d-… hop 2/6 | preset standard → standard | drift False
+```
+
+**这条补上了 7 节里"web profile 带 preset 的冷会话恢复"缺口**，而且是一次完整的 A→B→A（我 → 它 → 我）。
 
 ### 4.4 约束 2：恢复前后 preset 与模型一致（会话日志证明）
 
@@ -397,8 +463,9 @@ $ dsh --profile web --dump-config | grep -A2 "== dsh-session-link"
 
 | 项 | 现状 | 怎么补 |
 |---|---|---|
-| **web profile** 里恢复带 preset 的会话 | 代码路径与宿主 `dsh-api-session-controller.resumeObserved` 一致（`agentPresets.resolve` → `agentPresets.mount(agentCtx, id)`），单测用一个会记录 resolve/mount 的 fake 覆盖；端到端只在 headless profile 跑过（那里的会话没有 preset 头） | 重启后：在 GUI 里对任意旧会话调 `session_send`，看返回里 `capability.presetId` 是否等于该会话的 preset、`drift` 是否为 false |
-| `listTools` 里五个工具的完整 schema | 见第 3 节（宿主判定 restart-required） | 重启后 `cordis_inspect_query provider=Tool method=listTools` |
+| ~~**web profile** 里恢复带 preset 的会话~~ | **已验证**（3.4 / 4.10）：`presetId=standard`、`presetBefore=presetAfter`、`drift=false`，目标被唤醒并回信 | — |
+| ~~`listTools` 里五个工具的完整 schema~~ | **已验证**（3.4）：`fiberPhase: active`，工具表注入 5 个 schema，真机调用成功 | — |
+| `session_read` 的非无损 JSON 修复在运行进程里复验 | 修复 + 2 个回归用例已在离线套件通过；运行中的进程仍持有修复前的模块 | 再重启一次 `dsh web`，调 `session_read` 应正常返回 |
 | 大会话（10 万级事件）上的 `session_read` 耗时 | 未压测；实现上是「物化一次事件数组 + 取尾部」 | `node scripts/e2e-live.mjs` 之后对一个大会话调 `session_read(limit=20)` 计时 |
 | 多进程并发投递给同一个冷会话 | 有 resume 竞态保护（后到者丢弃自己的 handle），单测未覆盖真实并发 | 两个进程同时 `session_send` 给同一个冷会话，看审计里是否只有一条 delivery 成功、另一条复用或明确失败 |
 | 修复后的模块在**运行中的 web 进程**里挂载 | 已在本机复刻的真实装配路径上通过（3.3），但运行中的进程还持有旧模块（3.4） | 重启一次 `dsh web`：看 `fiberPhase: active` + `listTools` 出现 5 个工具 |

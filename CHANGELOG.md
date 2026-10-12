@@ -19,7 +19,7 @@
 - 限流：每对「发送方→接收方」默认 12 条/分钟。
 - 审计：NDJSON 一行一决策（delivery / refusal / status），自动轮转；回执由同一份文件重放。
 - 优雅降级：缺 `sessionQuery`/`agents`/`agentPresets`/`workspaceRegistry` 时返回可读说明，不抛裸异常。
-- 114 个离线单测（`node --test`，零运行时依赖）+ 真机端到端脚本 `scripts/e2e-live.mjs`
+- 116 个离线单测（`node --test`，零运行时依赖）+ 真机端到端脚本 `scripts/e2e-live.mjs`
   + zstd 多帧会话日志读取器 `scripts/session-log.mjs`。
 - 文档：README（中文）/ README_EN / docs/protocol.md / docs/verification.md / docs/troubleshooting.md。
 
@@ -39,5 +39,9 @@
   （此前它只测了 schema 编译，没有走真实装配路径，所以没拦住这个 bug）。
 - 装配改为**逐个工具**编译+注册：某一个定义被宿主拒绝时只损失那一个工具，
   不再让整条 fiber 失败、五个工具全没了（有对应测试）。
+- **`session_read` / `session_list` 的返回值不是无损 JSON**（2026-10-12 第二次重启后实测）：
+  目标会话没有标题时 `titleOf()` 返回 `undefined`，而 `undefined` 成员会让宿主的
+  "value is not lossless JSON" 校验直接判非法，工具调用报错。顶层统一过 `compact()`，
+  并补 2 个回归用例（无会话身份的调用方 / 无标题·cwd·preset 的会话）。
 - 归档守卫最初读的是 `workspace.archivedSessionIds`（每个 workspace 的字段，实际不存在），
   导致归档会话仍会被唤醒；端到端测试暴露后改为读 `workspaceRegistry.archivedSessionIds`（registry 全局集合）。

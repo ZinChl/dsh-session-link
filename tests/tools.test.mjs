@@ -208,6 +208,16 @@ describe('session_list tool', () => {
     void engine;
   });
 
+  it('stays lossless JSON for a caller with no session identity', async () => {
+    const { byName } = await mount({ sessions: [sessionFixture('session-b')] });
+    const tool = byName.get('session_list');
+    const value = await tool.execute({}, { callId: 'call_1', signal: new AbortController().signal });
+    assert.deepEqual(validate(value, tool.output.schema), []);
+    assert.deepEqual(assertLosslessJson(value), []);
+    assert.equal(value.ok, true);
+    assert.equal('self' in value, false);
+  });
+
   it('filters by query', async () => {
     const { byName } = await mount({
       sessions: [sessionFixture('session-b', { title: 'FPGA 时序' }), sessionFixture('session-c', { title: '前端' })],
@@ -273,6 +283,22 @@ describe('session_read tool', () => {
     assert.equal(value.messages.at(-2).role, 'tool-call');
     assert.equal(value.messages.at(-2).name, 'bash');
     assert.match(tool.output.render({ sessionId: 'session-b' }, value)[0].text, /会话 session-b/);
+  });
+
+  it('stays lossless JSON for a session with no title, cwd or preset', async () => {
+    const bare = { id: 'session-bare', updatedAt: 1000, events: [] };
+    const { byName } = await mount({ sessions: [bare] });
+    const tool = byName.get('session_read');
+    const value = await tool.execute({ sessionId: 'session-bare' }, exec('session-a'));
+    assert.deepEqual(validate(value, tool.output.schema), []);
+    assert.deepEqual(assertLosslessJson(value), []);
+    assert.equal(value.ok, true);
+    assert.equal(value.sessionId, 'session-bare');
+    // Missing header fields must be ABSENT, never `undefined` members: the host
+    // rejects a tool result that is not lossless JSON.
+    assert.equal('title' in value, false);
+    assert.equal('agentPreset' in value, false);
+    assert.equal('cwd' in value, true); // the fixture host defaults cwd to /tmp
   });
 
   it('reports an unknown session as a structured failure', async () => {
