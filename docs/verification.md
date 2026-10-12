@@ -60,9 +60,9 @@ $ dsh --profile web --dump-config | grep -A3 "== dsh-session-link"
 
 ```
 $ npm test            # = node --test（自动发现）
-ℹ tests 117
+ℹ tests 120
 ℹ suites 39
-ℹ pass 117
+ℹ pass 120
 ℹ fail 0
 ℹ duration_ms 1151.131808
 ```

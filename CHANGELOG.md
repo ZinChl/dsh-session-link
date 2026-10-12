@@ -19,7 +19,7 @@
 - 限流：每对「发送方→接收方」默认 12 条/分钟。
 - 审计：NDJSON 一行一决策（delivery / refusal / status），自动轮转；回执由同一份文件重放。
 - 优雅降级：缺 `sessionQuery`/`agents`/`agentPresets`/`workspaceRegistry` 时返回可读说明，不抛裸异常。
-- 117 个离线单测（`node --test`，零运行时依赖）+ 真机端到端脚本 `scripts/e2e-live.mjs`
+- 120 个离线单测（`node --test`，零运行时依赖）+ 真机端到端脚本 `scripts/e2e-live.mjs`
   + zstd 多帧会话日志读取器 `scripts/session-log.mjs`。
 - 文档：README（中文）/ README_EN / docs/protocol.md / docs/verification.md / docs/troubleshooting.md。
 
