@@ -49,6 +49,17 @@ dsh web
 dsh plugin --profile web add /path/to/dsh-session-link
 ```
 
+也可以直接装某个 release 的 tarball（不用 clone）：
+
+```bash
+# 资产里带 SHA256SUMS，可先校验
+dsh plugin --profile web add \
+  https://github.com/ZinChl/dsh-session-link/releases/download/v0.1.0/dsh-session-link-0.1.0.tgz
+```
+
+发版流程：打 `v*` tag → CI 跑 `npm run check` → `npm pack` → 自动建 Release 并附上
+tarball 与 `SHA256SUMS`（`.github/workflows/release.yml`）。tag 必须与 `package.json` 的版本一致，否则工作流直接失败。
+
 卸载：
 
 ```bash
