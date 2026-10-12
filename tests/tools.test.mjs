@@ -446,6 +446,29 @@ describe('check_delivery tool', () => {
   });
 });
 
+describe('lossless-JSON guard', () => {
+  it('strips undefined members everywhere, even inside loosely-typed fields', async () => {
+    // A session with no title / preset, plus a refusal carrying `details`,
+    // is the combination that produced the live failure.
+    const bare = { id: 'session-bare', updatedAt: 1000, events: [] };
+    const { byName } = await mount({ sessions: [bare] });
+    const calls = [
+      ['session_list', {}, exec('session-a')],
+      ['session_read', { sessionId: 'session-bare' }, exec('session-a')],
+      ['session_read', { sessionId: 'session-ghost' }, exec('session-a')],
+      ['session_send', { sessionId: 'session-bare', text: 'x' }, exec('session-bare')],
+      ['check_delivery', { requestId: 'req_missing' }, exec('session-a')],
+      ['check_delivery', {}, exec('session-a')],
+    ];
+    for (const [name, args, execContext] of calls) {
+      const tool = byName.get(name);
+      const value = await tool.execute(args, execContext);
+      assert.deepEqual(assertLosslessJson(value), [], `${name}(${JSON.stringify(args)}) must be lossless JSON`);
+      assert.deepEqual(validate(value, tool.output.schema), [], `${name} must satisfy its output schema`);
+    }
+  });
+});
+
 describe('plugin disposal', () => {
   it('disposes agents it resumed when the host unloads the plugin', async () => {
     const { byName, host } = await mount({ sessions: [sessionFixture('session-b')] });

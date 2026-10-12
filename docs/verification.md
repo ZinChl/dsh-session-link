@@ -60,11 +60,11 @@ $ dsh --profile web --dump-config | grep -A3 "== dsh-session-link"
 
 ```
 $ npm test            # = node --test（自动发现）
-ℹ tests 116
-ℹ suites 38
-ℹ pass 116
+ℹ tests 117
+ℹ suites 39
+ℹ pass 117
 ℹ fail 0
-ℹ duration_ms 1154.711231
+ℹ duration_ms 1151.131808
 ```
 
 覆盖的硬约束（每个都有对应测试）：
@@ -217,8 +217,9 @@ Error: tool "session_read" returned invalid output: value is not lossless JSON
 
 根因：目标会话**没有标题**（标题服务无结果），`titleOf()` 返回 `undefined`，而我把 `title/cwd/agentPreset`
 直接放进了返回值 —— 宿主的结果校验要求"无损 JSON"，`undefined` 成员直接判非法。
-`session_read` 与 `session_list` 的顶层都补了 `compact()`，并加了两个回归用例
-（"没有会话身份的调用方" / "没有标题/cwd/preset 的会话"）。
+修法：`session_read` / `session_list` 顶层补 `compact()`，并新增一个**深度** `lossless()` 守卫
+（递归剔除 `undefined` 成员），五个工具的返回值统一过它 —— 这样"忘了 compact"这类错误在结构上不可能再发生。
+回归用例 3 个：没有会话身份的调用方、没有标题/cwd/preset 的会话、以及一次性遍历五条调用路径断言深度无损。
 
 这条同样需要重启才生效（3.4 里说的模块缓存）。**这是本次唯一还没在运行进程里复验的修复。**
 
