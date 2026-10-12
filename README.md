@@ -236,7 +236,7 @@ check_delivery(requestId="req_…")                    # 回执 / 为什么没�
 
 ```bash
 npm install       # 唯一运行时依赖 schemastery（Config schema / 设置页）
-npm test          # 135 个离线单测（node --test）
+npm test          # 139 个离线单测（node --test）
 npm run smoke     # 用真实宿主包编译工具定义（需要本机装过 dsh）
 npm run e2e       # 真机端到端：真进程 + 真模型 + 真投递（需要装进 headless profile）
 ```
