@@ -69,6 +69,37 @@ describe('listSessions', () => {
     assert.equal(result.rows.find((row) => row.sessionId === 'session-a').isSelf, true);
   });
 
+  it('falls back to per-session titles when the batch call rejects', async () => {
+    const host = createHost({ sessions: [fixture('session-a', { title: '甲' }), fixture('session-b', { title: '乙' })] });
+    host.services.sessionQuery.readTitleSnapshots = async () => {
+      throw new Error('SESSION_QUERY_PERSISTENCE_FAILED');
+    };
+    const result = await listSessions(host.ctx, {});
+    assert.deepEqual(result.rows.map((row) => row.title).sort(), ['乙', '甲']);
+    assert.match(result.degraded.join('\n'), /批量标题失败（.*PERSISTENCE_FAILED.*），已逐个读取/);
+  });
+
+  it('falls back when the batch returns nothing', async () => {
+    const host = createHost({ sessions: [fixture('session-a', { title: '甲' })] });
+    host.services.sessionQuery.readTitleSnapshots = async () => [];
+    const result = await listSessions(host.ctx, {});
+    assert.equal(result.rows[0].title, '甲');
+    assert.match(result.degraded.join('\n'), /批量标题无结果，已逐个读取/);
+  });
+
+  it('reports a readable note when neither path yields a title', async () => {
+    const host = createHost({ sessions: [fixture('session-a', { title: '甲' })] });
+    host.services.sessionQuery.readTitleSnapshots = async () => {
+      throw new Error('boom');
+    };
+    host.services.sessionQuery.readTitle = async () => {
+      throw new Error('boom');
+    };
+    const result = await listSessions(host.ctx, {});
+    assert.equal(result.rows[0].title, undefined);
+    assert.match(result.degraded.join('\n'), /批量标题失败（.*boom.*），已逐个读取，其中 1 个失败/);
+  });
+
   it('filters by title, cwd or id substring', async () => {
     const host = createHost({
       sessions: [fixture('session-b', { title: 'FPGA 时序' }), fixture('session-c', { title: '前端', cwd: '/srv/app' })],

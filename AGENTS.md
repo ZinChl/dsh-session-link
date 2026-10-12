@@ -38,6 +38,8 @@
   回归测试见 `tests/tool-definitions.test.mjs`。
 - **Cordis 缓存已 import 的模块，HMR 不监听 `link:` 依赖**：改完 `lib/` 必须重启 dsh 才生效，
   `plugin_manager` 的关/开只会拿旧模块重跑 `apply`（会复现同一个错误，别被误导）。
+- **`sessionQuery.readTitleSnapshots`（批量）在本机会返回空、`readTitle`（单个）却正常**：
+  `lib/sessions.js` 的 `titlesFor` 已做逐个回退并把原因写进 `degraded`，别把批量当唯一来源。
 - 排查插件是否挂上：`plugin_manager list_plugins` 看 `patchId: dsh-session-link` 的 `fiberPhase`
  （`active` 正常 / `failed` 说明 `apply` 抛错，关一次再开会把原始堆栈放进 `error.diagnostic`）。
 

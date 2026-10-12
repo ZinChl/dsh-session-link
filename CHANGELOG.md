@@ -23,6 +23,11 @@
   + zstd 多帧会话日志读取器 `scripts/session-log.mjs`。
 - 文档：README（中文）/ README_EN / docs/protocol.md / docs/verification.md / docs/troubleshooting.md。
 
+### Added
+- `session_list` 的标题回退：本机真机发现 `sessionQuery.readTitleSnapshots`（批量）会返回空/失败，
+  而 `readTitle`（单个）正常 —— 现在批量拿不到时自动逐个读取，并把原因写进 `degraded`
+  （`批量标题失败（…），已逐个读取`），不再静默显示"(无标题)"。3 个回归用例。
+
 ### Changed (相对任务文档的字面要求)
 - **恢复冷会话时会传 `agentOptions`**：实测「只传 `resumeSessionId`」会让恢复出来的 agent 没有模型路由，
   persona 段的 `{{model}}` 解析失败导致整轮报错。现在改为**只传目标自己记录的那一份**路由，
