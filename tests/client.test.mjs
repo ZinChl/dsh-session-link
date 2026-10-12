@@ -150,9 +150,12 @@ function configFormsStub({ status = 'ready', value = { maxHops: 6 }, base = { ma
     subscribes,
     service: {
       describe: () => ({
+        // Mirrors the real SettingsMirrorSnapshot: the answer rides `view`,
+        // and `idle`/`loading` mean "no answer held yet".
         getSnapshot: () => ({
-          status: status === 'loading' ? 'loading' : 'ready',
-          value: { namespaces: namespaces ?? [{ ns: 'dsh-session-link' }], writable: true },
+          status,
+          view: status === 'ready' ? { namespaces: namespaces ?? [{ ns: 'dsh-session-link' }], writable: true } : undefined,
+          error: null,
         }),
         subscribe: () => () => {},
         ensure: async () => {},
@@ -210,6 +213,22 @@ describe('client settings page', () => {
     assert.match(text, /读取配置…/);
   });
 
+  it('treats an idle mirror as loading, not as a missing namespace', async () => {
+    const Page = await loadPage();
+    const stub = configFormsStub({ status: 'idle' });
+    const text = textOf(double.render(Page, { view: 'page', clientContext: { get: () => stub.service } })).join(' | ');
+    assert.match(text, /读取配置…/);
+    assert.doesNotMatch(text, /没有暴露/);
+  });
+
+  it('reads the namespace list from the mirror snapshot view', async () => {
+    const Page = await loadPage();
+    const stub = configFormsStub({ namespaces: [{ ns: 'include:dsh-session-link' }] });
+    const text = textOf(double.render(Page, { view: 'page', clientContext: { get: () => stub.service } })).join(' | ');
+    // The loader entry id (`include:<patchId>`) must match too.
+    assert.match(text, /跳数上限/);
+  });
+
   it('explains itself instead of blanking when no channel exists', async () => {
     const Page = await loadPage();
     const text = textOf(double.render(Page, { view: 'page', clientContext: { get: () => undefined } })).join(' | ');
@@ -217,11 +236,12 @@ describe('client settings page', () => {
     assert.match(text, /cordis\.patch\.yml/);
   });
 
-  it('names the missing namespace explicitly', async () => {
+  it('names the missing namespace and lists what the host does expose', async () => {
     const Page = await loadPage();
-    const stub = configFormsStub({ namespaces: [{ ns: 'someone-else' }] });
+    const stub = configFormsStub({ namespaces: [{ ns: 'someone-else' }, { ns: 'ui-chat' }] });
     const text = textOf(double.render(Page, { view: 'page', clientContext: { get: () => stub.service } })).join(' | ');
     assert.match(text, /没有暴露 dsh-session-link 的设置条目/);
+    assert.match(text, /宿主当前已注册：someone-else、ui-chat/);
   });
 
   it('renders the summary view as one line', async () => {
